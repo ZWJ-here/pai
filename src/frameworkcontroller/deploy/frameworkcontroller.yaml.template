@@ -42,11 +42,17 @@ spec:
         command: [
           "bash", "-c",
           "cp /frameworkcontroller-config/frameworkcontroller.yaml . &&
-          ./start.sh"]
+          ./start.sh 2>&1 | tee -a -i /var/log/frameworkcontroller/frameworkcontroller.log"]
         volumeMounts:
           - name: frameworkcontroller-config
             mountPath: /frameworkcontroller-config
+          - name: frameworkcontroller-log
+            mountPath: /var/log/frameworkcontroller
       volumes:
       - name: frameworkcontroller-config
         configMap:
           name: frameworkcontroller-config
+      - name: frameworkcontroller-log
+        hostPath:
+          path: /var/log/frameworkcontroller
+          type: DirectoryOrCreate

@@ -38,12 +38,14 @@ spec:
         imagePullPolicy: Always
         env:
         - name: LOGROTATE_CRONSCHEDULE
-          value: "daily"
+          value: "hourly"
         volumeMounts:
         - name: pai-log
           mountPath: /usr/local/pai/logs
         - name: pai-log-backup
           mountPath: /usr/local/pai/logs-backup
+        - name: frameworkcontroller-log
+          mountPath: /var/log/frameworkcontroller
       - name: log-manager-nginx
         image: {{ cluster_cfg["cluster"]["docker-registry"]["prefix"] }}log-manager-nginx:{{ cluster_cfg["cluster"]["docker-registry"]["tag"] }}
         imagePullPolicy: Always
@@ -69,6 +71,10 @@ spec:
         - name: pai-log-backup
           hostPath:
             path: /var/log/pai-backup
+        - name: frameworkcontroller-log
+          hostPath:
+            path: /var/log/frameworkcontroller
+            type: DirectoryOrCreate
       imagePullSecrets:
       - name: {{ cluster_cfg["cluster"]["docker-registry"]["secret-name"] }}
       tolerations:
