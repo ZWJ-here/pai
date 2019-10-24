@@ -1,0 +1,100 @@
+# Copyright (c) Microsoft Corporation
+# All rights reserved.
+#
+# MIT License
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+# the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+# to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED *AS IS*, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+# BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+# DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: fluentd-config
+  labels:
+    addonmanager.kubernetes.io/mode: Reconcile
+data:
+  system.conf: |-
+    <system>
+      root_dir /tmp/fluentd-buffers/
+    </system>
+  frameworkcontroller.log.conf: |-
+    # Input from frameworkcontroller.log
+    <source>
+      @type tail
+      format /^\w(?<LogTime>\d{4}\s[^\s]*)\s+\d+\s+[^ \]]+\]\s(?<LogMessage>.*)\sObjectSnapshot:(?<ObjectSnapshot>.*)/
+      path /var/log/frameworkcontroller.log
+      pos_file /var/log/frameworkcontroller.log.pos
+      tag frameworkcontroller.log
+    </source>
+
+    # Stdout test
+    <filter frameworkcontroller.log>
+      @type stdout
+      <format>
+        @type json
+      </format>
+    </filter>
+
+    # Add CollectTime
+    <filter frameworkcontroller.log>
+      @type record_transformer
+      enable_ruby true
+      timezone +08:00
+      <record>
+        CollectTime ${time.strftime('%Y-%m-%dT%H:%M:%S%z')}
+      </record>
+    </filter>
+
+    # Parse json
+    <filter frameworkcontroller.log>
+      @type parser
+      key_name ObjectSnapshot
+      reserve_data true
+      hash_value_field ObjectSnapshot
+      <parse>
+        @type json
+      </parse>
+    </filter>
+
+    # Output to elasticsearch
+    <match frameworkcontroller.log>
+      @type copy
+      # index by kind
+      <store>
+        @type elasticsearch_dynamic
+        type_name _doc
+        # elasticsearch_host
+        host 10.151.40.4
+        # elasticsearch-service_port
+        port 30100
+        index_name ${record['ObjectSnapshot']['kind']}
+        customize_template {
+          "index_patterns": ["framework", "pod"],
+          "settings": {
+            "number_of_shards": 3,
+            "number_of_replicas": 1,
+            "index.refresh_interval": "1s"
+          },
+          "mappings": {
+            "properties": {
+
+            }
+          }
+        }
+        <buffer>
+         @type memory
+         chunk_limit_records 1
+         flush_mode immediate
+         flush_thread_count 2
+        </buffer>
+      </store>
+    </match>
